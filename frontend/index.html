@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Putty & WinSCP Combined App</title>
+    <link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+    <!-- Top Header & Main Actions -->
+    <header class="app-header">
+        <div class="toolbar-group">
+            <button id="btnManager" class="btn btn-primary">[Manager]</button>
+            <button id="btnUp" class="btn">[Up]</button>
+            <button id="btnCut" class="btn">[Cut]</button>
+            <button id="btnCopy" class="btn">[Copy]</button>
+            <button id="btnPaste" class="btn">[Paste]</button>
+            <button id="btnDelete" class="btn btn-danger">[Delete]</button>
+            <button id="btnRename" class="btn">[Rename]</button>
+            <button id="btnRefresh" class="btn">[Refresh]</button>
+            <button id="btnNewFolder" class="btn">[New Folder]</button>
+            <button id="btnNewText" class="btn">[New Text]</button>
+            <button id="btnChmod" class="btn">[Chmod 777]</button>
+        </div>
+        <div class="toolbar-group">
+            <span id="connStatus" style="font-size: 12px; color: #a6adc8; margin-right: 8px;">Disconnected</span>
+            <button id="btnDisconnect" class="btn btn-danger">[Disconnect]</button>
+        </div>
+    </header>
+
+    <!-- Main View Container -->
+    <main class="main-container">
+        <!-- Top File Panes (Fixed 50/50 Side-by-Side) -->
+        <div class="file-panes-container" id="filePanesContainer">
+            <!-- Local File Pane (Left) -->
+            <section class="pane" id="localPane">
+                <div class="pane-header">
+                    <span>Local File System</span>
+                    <span id="localCount" style="font-size: 11px; color: #a6adc8;">0 items</span>
+                </div>
+                <div class="path-bar">
+                    <input type="text" id="localPathInput" class="path-input" value="" placeholder="Local path...">
+                    <button id="btnLocalGo" class="btn">Go</button>
+                </div>
+                <div class="file-list-container" id="localListContainer">
+                    <table class="file-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Size</th>
+                                <th>Perms</th>
+                            </tr>
+                        </thead>
+                        <tbody id="localFileTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Remote File Pane (Right) -->
+            <section class="pane" id="remotePane">
+                <div class="pane-header">
+                    <span>Remote SSH File System</span>
+                    <span id="remoteCount" style="font-size: 11px; color: #a6adc8;">0 items</span>
+                </div>
+                <div class="path-bar">
+                    <input type="text" id="remotePathInput" class="path-input" value="~" placeholder="Remote path...">
+                    <button id="btnRemoteGo" class="btn">Go</button>
+                </div>
+                <div class="file-list-container" id="remoteListContainer">
+                    <table class="file-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Size</th>
+                                <th>Perms</th>
+                            </tr>
+                        </thead>
+                        <tbody id="remoteFileTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <!-- Horizontal Resizable Splitter -->
+        <div class="splitter-h" id="splitterH"></div>
+
+        <!-- Bottom SSH CLI Terminal Section -->
+        <section class="terminal-container" id="terminalContainer">
+            <div class="terminal-header">
+                <span>SSH CLI Terminal Session</span>
+                <span style="font-size: 11px; font-weight: normal; color: #a6adc8;">Type 'su' for root prompt, 'exit' to drop back, 'cd' to sync, 'cdl' for local cd</span>
+            </div>
+            <div class="terminal-output" id="terminalOutput"></div>
+            <div class="terminal-input-bar">
+                <span class="terminal-prompt" id="terminalPrompt">SSH&gt;</span>
+                <input type="text" id="terminalInput" class="terminal-input" placeholder="Type SSH command here..." autocomplete="off">
+            </div>
+        </section>
+
+        <!-- Side Pull-out Text Editors (Toast Side Panels) -->
+        <!-- Local Text Editor Toast (Left Side) -->
+        <div class="editor-toast left" id="localEditorToast">
+            <div class="editor-header">
+                <span style="font-weight: bold; font-size: 13px;">Local File Editor</span>
+                <input type="text" class="editor-path" id="localEditorPath" readonly value="">
+                <button id="btnLocalEditorSave" class="btn btn-primary">Save</button>
+                <button id="btnLocalEditorHide" class="btn">(Un)Hide</button>
+                <button id="btnLocalEditorClose" class="btn btn-danger">Close</button>
+            </div>
+            <textarea id="localEditorText" class="editor-textarea" placeholder="File content..."></textarea>
+        </div>
+
+        <!-- Remote Text Editor Toast (Right Side) -->
+        <div class="editor-toast right" id="remoteEditorToast">
+            <div class="editor-header">
+                <span style="font-weight: bold; font-size: 13px;">Remote File Editor</span>
+                <input type="text" class="editor-path" id="remoteEditorPath" readonly value="">
+                <button id="btnRemoteEditorSave" class="btn btn-primary">Save</button>
+                <button id="btnRemoteEditorHide" class="btn">(Un)Hide</button>
+                <button id="btnRemoteEditorClose" class="btn btn-danger">Close</button>
+            </div>
+            <textarea id="remoteEditorText" class="editor-textarea" placeholder="File content..."></textarea>
+        </div>
+    </main>
+
+    <!-- Session Manager Dialog Modal -->
+    <div class="modal-overlay hidden" id="managerModal">
+        <div class="modal-content" style="width: 520px;">
+            <div class="modal-title">Session Manager</div>
+            <div class="form-group">
+                <label>Saved Account Presets:</label>
+                <div class="session-list" id="sessionList"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Host / Address:</label>
+                    <input type="text" id="mgrHost" class="form-input" placeholder="192.168.1.100">
+                </div>
+                <div class="form-group" style="flex: 0 0 80px;">
+                    <label>Port:</label>
+                    <input type="number" id="mgrPort" class="form-input" value="22">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Username:</label>
+                    <input type="text" id="mgrUser" class="form-input" placeholder="root">
+                </div>
+                <div class="form-group">
+                    <label>Auth Type:</label>
+                    <select id="mgrAuthType" class="form-input">
+                        <option value="password">Password</option>
+                        <option value="key">Private Key</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group" id="passGroup">
+                <label>Password:</label>
+                <input type="password" id="mgrPass" class="form-input" placeholder="SSH Password">
+            </div>
+            <div class="form-group hidden" id="keyGroup">
+                <label>Key File Path:</label>
+                <input type="text" id="mgrKeyPath" class="form-input" placeholder="/path/to/id_rsa">
+                <label style="margin-top:4px;">Key Passphrase (optional):</label>
+                <input type="password" id="mgrKeyPass" class="form-input" placeholder="Passphrase">
+            </div>
+            <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px;">
+                <button id="btnMgrSave" class="btn">Save Preset</button>
+                <button id="btnMgrDelete" class="btn btn-danger">Delete Preset</button>
+                <button id="btnMgrConnect" class="btn btn-primary">Connect</button>
+                <button id="btnMgrClose" class="btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Master Password Prompt Modal -->
+    <div class="modal-overlay hidden" id="masterPassModal">
+        <div class="modal-content" style="width: 360px;">
+            <div class="modal-title" id="masterPassTitle">Unlock Saved Passwords</div>
+            <div class="form-group">
+                <label id="masterPassLabel">Enter Master Password:</label>
+                <input type="password" id="masterPassInput" class="form-input">
+            </div>
+            <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                <button id="btnMasterPassSubmit" class="btn btn-primary">Submit</button>
+                <button id="btnMasterPassCancel" class="btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Permissions (Chmod) Overlay Modal -->
+    <div class="modal-overlay hidden" id="chmodModal">
+        <div class="modal-content">
+            <div class="modal-title">Change File Permissions (Chmod)</div>
+            <div id="chmodTargetLabel" style="font-size: 12px; color: #a6adc8;">File: </div>
+            <div class="chmod-grid">
+                <div></div>
+                <div>Read (4)</div>
+                <div>Write (2)</div>
+                <div>Exec (1)</div>
+
+                <label>Owner:</label>
+                <div><input type="checkbox" id="chkUR"></div>
+                <div><input type="checkbox" id="chkUW"></div>
+                <div><input type="checkbox" id="chkUX"></div>
+
+                <label>Group:</label>
+                <div><input type="checkbox" id="chkGR"></div>
+                <div><input type="checkbox" id="chkGW"></div>
+                <div><input type="checkbox" id="chkGX"></div>
+
+                <label>Other:</label>
+                <div><input type="checkbox" id="chkOR"></div>
+                <div><input type="checkbox" id="chkOW"></div>
+                <div><input type="checkbox" id="chkOX"></div>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 10px;">
+                <span id="chmodOctalVal" style="font-weight: bold; font-family: monospace; font-size: 14px; color: #89b4fa;">0755</span>
+                <div style="display: flex; gap: 8px;">
+                    <button id="btnChmodSet777" class="btn">Set 777</button>
+                    <button id="btnChmodApply" class="btn btn-primary">Apply</button>
+                    <button id="btnChmodCancel" class="btn">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Password Prompt for 'su' Modal -->
+    <div class="modal-overlay hidden" id="suModal">
+        <div class="modal-content" style="width: 360px;">
+            <div class="modal-title">su Password Required</div>
+            <div class="form-group">
+                <label>Enter root password for su:</label>
+                <input type="password" id="suPassInput" class="form-input">
+            </div>
+            <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                <button id="btnSuSubmit" class="btn btn-primary">Submit</button>
+                <button id="btnSuCancel" class="btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="./src/main.js"></script>
+</body>
+</html>
